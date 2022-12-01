@@ -1,109 +1,87 @@
-import streamlit as st 
-import numpy as np 
+# Import das bibliotecas
+import streamlit as st
+import pandas as pd
+from PIL import Image
+from sklearn import metrics
+import shap
+import matplotlib.pyplot as plt 
+import seaborn as sns 
+from functions import * 
 
-import matplotlib.pyplot as plt
-from sklearn import datasets
-from sklearn.model_selection import train_test_split
+st.set_option('deprecation.showPyplotGlobalUse', False)
 
-from sklearn.decomposition import PCA
-from sklearn.svm import SVC
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.ensemble import RandomForestClassifier
+image = Image.open('uninove.png') # Imagem do front com logo da Uninove
 
-from sklearn.metrics import accuracy_score
+# Cabeçalho da tela
+st.image(image)
+html_temp = """
+<div style ="background-color:blue;padding:13px">
+<h1 style ="color:white;text-align:center;">Modelo de predição de Churn de clientes de telefonia móvel</h1>
+</div>
+"""
 
-st.title('Streamlit Example')
+st.markdown(html_temp, unsafe_allow_html = True)
+st.subheader('**Modelo de predição de churn usando Xtreme Gradient Boosting**')
+st.markdown('**Este modelo foi treinado usando informações históricas de clientes que tiveram churn e clientes que não tiveram churn.**')
 
-st.write("""
-# Explore different classifier and datasets
-Which one is the best?
-""")
+# Função principal
+def main():
 
-dataset_name = st.sidebar.selectbox(
-    'Select Dataset',
-    ('Iris', 'Breast Cancer', 'Wine')
-)
+    st.subheader('** Selecione uma das opções abaixo: **')
+    options =st.radio('O que voce deseja fazer? ', ('', 'Análise exploratória', 'Predição de Churn', 'Explicabilidade'))
 
-st.write(f"## {dataset_name} Dataset")
+    if options == 'Predição de Churn':
+        st.subheader('Insira os dados abaixo:')
+        state=st.selectbox('Escolha a sigla do estado :', ['','AK', 'AL', 'AR', 'AZ', 'CA', 'CO', 'CT', 'DC', 'DE', 'FL', 'GA', 'HI', 'IA','ID',\
+		'IL', 'IN', 'KS', 'KY', 'LA', 'MA', 'MD', 'ME', 'MI', 'MN', 'MO', 'MS', 'MT', 'NC', 'ND', 'NE', 'NH', 'NJ', 'NM', 'NV',\
+		'NY', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC', 'SD', 'TN', 'TX', 'UT', 'VA', 'VT', 'WA', 'WI', 'WV','WY'])
+        account_length=st.number_input('Selecione o tempo como cliente :', min_value=0, max_value=250, value=0)
+        area_code=st.selectbox('Selecione o codigo de area :', ['','area_code_408', 'area_code_415', 'area_code_510'])
+        international_plan=st.selectbox('Selecione se o cliente tem plano internacional :', ['', 'yes', 'no'])
+        voice_mail_plan=st.selectbox('Selecione se o cliente tem plano de caixa postal :',  ['', 'yes', 'no'])
+        number_vmail_messages=st.slider('Insira o numero de mensagens na caixa postal', min_value=0, max_value=250, value=0)
+        total_day_minutes=st.slider('Insira o numero de minutos por dia :', min_value=0, max_value=250, value=0)
+        total_day_calls=st.slider('Insira o numero de ligações por dia :', min_value=0, max_value=250, value=0)
+        total_day_charge=st.slider('Insira o numero de recargas por dia :', min_value=0, max_value=250, value=0)
+        total_eve_minutes=st.slider('Insira o numero de minutos por tarde :', min_value=0, max_value=250, value=0)
+        total_eve_calls=st.slider('Insira o numero de ligações por tarde :', min_value=0, max_value=250, value=0)
+        total_eve_charge=st.slider('Insira o numero de recargas por tarde :', min_value=0, max_value=250, value=0)
+        total_night_minutes=st.slider('Insira o numero de minutos por noite :', min_value=0, max_value=250, value=0)
+        total_night_calls=st.slider('Insira o numero de ligações por noite :', min_value=0, max_value=250, value=0)
+        total_night_charge=st.slider('Insira o numero de recargas por noite :', min_value=0, max_value=250, value=0)
+        total_intl_minutes=st.slider('Insira o numero de minutos internacionais :', min_value=0, max_value=250, value=0)
+        total_intl_calls=st.slider('Insira o numero de ligações internacionais :', min_value=0, max_value=250, value=0)
+        total_intl_charge=st.slider('Insira o numero de recargas internacionais :', min_value=0, max_value=250, value=0)
+        number_customer_service_calls=st.slider('Insira o numero de ligações para atendimento ao cliente :', min_value=0, max_value=250, value=0)
 
-classifier_name = st.sidebar.selectbox(
-    'Select classifier',
-    ('KNN', 'SVM', 'Random Forest')
-)
+        # Dicionário para gerar o dataset
+        input_dict={'state':state,'account_length': account_length,'area_code':area_code,'international_plan':international_plan,'voice_mail_plan':voice_mail_plan\
+		,'number_vmail_messages':number_vmail_messages,'total_day_minutes':total_day_minutes,'total_day_calls':total_day_calls\
+        ,'total_day_charge':total_day_charge, 'total_eve_minutes':total_eve_minutes,'total_eve_calls':total_eve_calls\
+        ,'total_eve_charge':total_eve_charge,'total_night_minutes':total_night_minutes,'total_night_calls':total_night_calls\
+        ,'total_night_charge':total_night_charge,'total_intl_minutes':total_intl_minutes,'total_intl_calls':total_intl_calls\
+		,'total_intl_charge':total_intl_charge ,'number_customer_service_calls':number_customer_service_calls}
 
-def get_dataset(name):
-    data = None
-    if name == 'Iris':
-        data = datasets.load_iris()
-    elif name == 'Wine':
-        data = datasets.load_wine()
-    else:
-        data = datasets.load_breast_cancer()
-    X = data.data
-    y = data.target
-    return X, y
+        # Gerando dataset para predição
+        df_test = pd.DataFrame([input_dict])
 
-X, y = get_dataset(dataset_name)
-st.write('Shape of dataset:', X.shape)
-st.write('number of classes:', len(np.unique(y)))
+        if st.button('Predict'):
+            predict_value, proba_value = pipeline_predict(df_test, 'Predição de Churn')
+            if predict_value == '[1]':
+                predict_value = 'Churn'
+            else:
+                predict_value = '** Não Churn **'
+            proba_value = str(proba_value)
+            proba_value.replace('[]', '')
+            st.subheader('Dados inseridos pelo usuário:')
+            st.write(df_test)
+            st.write('A predição de churn deste cliente é {}, com a probabilidade de {}.'.format(predict_value, proba_value))
+        
+    if options == 'Análise exploratória':
+        pipeline_predict('', 'Análise exploratória')
 
-def add_parameter_ui(clf_name):
-    params = dict()
-    if clf_name == 'SVM':
-        C = st.sidebar.slider('C', 0.01, 10.0)
-        params['C'] = C
-    elif clf_name == 'KNN':
-        K = st.sidebar.slider('K', 1, 15)
-        params['K'] = K
-    else:
-        max_depth = st.sidebar.slider('max_depth', 2, 15)
-        params['max_depth'] = max_depth
-        n_estimators = st.sidebar.slider('n_estimators', 1, 100)
-        params['n_estimators'] = n_estimators
-    return params
-
-params = add_parameter_ui(classifier_name)
-
-def get_classifier(clf_name, params):
-    clf = None
-    if clf_name == 'SVM':
-        clf = SVC(C=params['C'])
-    elif clf_name == 'KNN':
-        clf = KNeighborsClassifier(n_neighbors=params['K'])
-    else:
-        clf = clf = RandomForestClassifier(n_estimators=params['n_estimators'], 
-            max_depth=params['max_depth'], random_state=1234)
-    return clf
-
-clf = get_classifier(classifier_name, params)
-#### CLASSIFICATION ####
-
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=1234)
-
-clf.fit(X_train, y_train)
-y_pred = clf.predict(X_test)
-
-acc = accuracy_score(y_test, y_pred)
-
-st.write(f'Classifier = {classifier_name}')
-st.write(f'Accuracy =', acc)
-
-#### PLOT DATASET ####
-# Project the data onto the 2 primary principal components
-pca = PCA(2)
-X_projected = pca.fit_transform(X)
-
-x1 = X_projected[:, 0]
-x2 = X_projected[:, 1]
-
-fig = plt.figure()
-plt.scatter(x1, x2,
-        c=y, alpha=0.8,
-        cmap='viridis')
-
-plt.xlabel('Principal Component 1')
-plt.ylabel('Principal Component 2')
-plt.colorbar()
-
-#plt.show()
-st.pyplot(fig)
+    if options == 'Explicabilidade':
+        pipeline_predict('', 'Explicabilidade')
+        
+if __name__ == '__main__':
+    main()
